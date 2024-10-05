@@ -1,0 +1,186 @@
+# Script in r-code
+# v2.0
+# Mauricio A. Valle.
+
+library('quantmod')
+library(ggplot2)
+library(tidyr)
+#.
+#.
+#.
+#.
+#.
+
+# an example of ticker retrieving
+symbol1 = c('SPY', # SP500
+            'AAPL', # 
+            'MSFT', # 
+            'V') # 
+
+
+myStocks <-lapply(symbol1 , function(x) {getSymbols(x, from = "2021/12/31", #year-month-day #to = "2023/12/31",
+                                                    to = '2023/09/30',
+                                                    periodicity = "daily",
+                                                    auto.assign=FALSE)} )
+adjustedPrices <- lapply(myStocks, Ad)
+adjustedPrices <- do.call(merge, adjustedPrices)
+head(adjustedPrices)
+#.
+#.
+#.
+#.
+#.
+
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - function to calculate returns
+# RETURN CALCULATION
+# inputs:
+# d : time unit of returns
+# vec = numerical vector with closing prices, e.g. vec = data$Close
+# outputs
+# ret : vector of returns
+
+return_calc <- function(d, vec) {
+  largo <- length(vec)
+  ret <- numeric(length=0)
+  ini = 1
+  fin = ini + d 
+  while ( fin <= largo) {
+    value <- ( vec[fin] - vec[ini]) / vec[ini]
+    ret <- c(ret, value)
+    ini = ini + 1
+    fin = fin + 1
+  }
+  return(ret)
+}
+# axample
+#ret <- return_calc(d=250, vec=as.numeric(adjustedPrices$SPY.Adjusted))
+#ret <- na.omit(ret)
+#head(ret)
+#write.csv(ret, 'anualsp500Returns.csv', row.names = FALSE)
+# - - - - - - - - - - - - - - - - - - - - - - - - - function to calculate returns
+#.
+#.
+#.
+#.
+#.
+
+# ANNUAL RETURNS
+# I apply the return_calc function on each adjustedPricesos column.
+all_rets <- as.data.frame( apply(adjustedPrices , 2, return_calc, d=250) )
+head(all_rets)
+
+#.
+#.
+#.
+#.
+#.
+
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - function to calculate final values
+# function to calculate the final value of the investment and the total return
+# inputs:
+# investment amount
+S0 = 1
+# aditional savigs per year
+Sy = 0.5
+# savings year
+m = 10
+# vector de retornos
+all_rets
+# output:
+# final value of the investment and total return during savings (not in %)
+sim_path <- function(ret, S0, Sy, m) {
+  pension <- numeric(length=0L)
+  pension <- c(pension, S0)
+  for ( t in 1:m) {
+    # pick a random return from ret
+    i <- sample(1:length(ret), 1, replace = FALSE)
+    retorno <- ret[ i ]
+    S <- pension[t-1] +  pension[t-1]*retorno + Sy*retorno
+    pension <- c(pension, S)
+  }
+  final_value <- pension[length(pension)]
+  savings_return <- (pension[length(pension)] - S0)/S0
+  return(savings_return)
+}
+# example 
+sim_path(ret= all_rets$SPY.Adjusted, S0 = 1, Sy = 1, m = 2 )
+# - - - - - - - - - - - - - - - - - - - - - - - - - function to calculate final values
+#.
+#.
+#.
+#.
+#.
+# Now I want to calculate the portfolio return (run this several times!)
+min_ret = 0.03 # minimum required return
+# We generate several simulated portfolio returns
+num_sim = 2*nrow(all_rets)
+# weight vector
+w <- c(0, 0.33, 0.33, 0.34)
+portfolio_return <- numeric(length=num_sim)
+sp500_return <- numeric(length=num_sim) 
+S0 = 1; Sy = 1; m = 5
+
+for ( i in 1:num_sim){
+  final_rets <- apply(all_rets , 2, sim_path, S0 = 1, Sy = 1, m = 5 )
+  portfolio_return[i] <- sum( w * final_rets )
+  sp500_return[i] <- final_rets[1] # solo el del sep500 # NUEVO
+}
+head(portfolio_return)
+tail(portfolio_return)
+#.
+#.
+#.
+#.
+#.
+# plots:
+
+xmin = min(min(sp500_return, min(portfolio_return)) )  
+xmax = max( max(sp500_return, max(portfolio_return)) )
+
+sp_returns <- data.frame(returns = sp500_return) # NUEVO
+plot_sp500 <- ggplot(sp_returns, aes(x=returns)) +
+  xlim(xmin, xmax) + 
+  #geom_histogram(binwidth=0.03, colour = "grey") + 
+  geom_histogram(aes(y = after_stat(count / sum(count))), position = "identity", alpha = 0.5, binwidth=0.02) +
+  scale_y_continuous(labels = scales::percent) + 
+  guides(fill=FALSE) +
+  geom_vline(aes(xintercept = (min_ret)), colour="red")+
+  geom_vline(aes(xintercept = median(returns)), colour="lightgreen") +
+  theme_bw() + 
+  ggtitle("Distribution of Returns S&P500") +
+  xlab("Return achieved in %") + ylab("Frequency") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+  
+port_rets <- data.frame(returns = portfolio_return )
+plot_port <- ggplot(port_rets, aes(x=returns)) +
+  geom_histogram(aes(y = after_stat(count / sum(count))), position = "identity", alpha = 0.5, binwidth=0.02, fill = "tomato") +
+  scale_y_continuous(labels = scales::percent) + 
+  xlim(xmin, xmax) + 
+  geom_vline(aes(xintercept = (min_ret)), colour="red")+
+  geom_vline(aes(xintercept = median(portfolio_return )), colour="lightgreen") +
+  #geom_histogram(binwidth=0.03, colour = "tomato") + 
+  guides(fill=FALSE) +
+  theme_bw() + 
+  ggtitle("Distribution of Portfolio Returns") +
+  xlab("Return achieved in %") + ylab("Frequency") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+
+library("gridExtra")
+grid.arrange(plot_sp500, plot_port, ncol=1, nrow=2)    
+#.
+#.
+#.
+#.
+#.
+# Some final results to analyze: 
+
+cat('Median returns S&P500 and Portfolio.    :', round(median(sp_returns$returns,2 )) , ' vs ', round(median(portfolio_return ) ), 2)  
+cat('Stand. Dev. returns S&P500 and Portfolio:', round(sd(sp_returns$returns ), 2) , ' vs ', round(sd(portfolio_return ),2))  
+a=(S0+m*Sy)*(1+ median(all_rets$SPY.Adjusted ))
+b=(S0+m*Sy)*(1+ median(portfolio_return))
+a2=sum(sp_returns$returns < 0)/length(sp_returns$returns )
+b2=sum(portfolio_return < 0)/length(portfolio_return )
+cat('Final value S&P500 and Portfolio        :', round(a,2) , ' vs ', round(b,2) )  
+cat('Probability of losing money             :', round(a2,2), ' vs ', round(b2,2))
