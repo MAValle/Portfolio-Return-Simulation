@@ -7,4 +7,7 @@ This script is a simple version of the Shiny application available at:
 
 https://mvalle.shinyapps.io/Portfolio_returns_simulations/
 
-Please refer to the pdf file for more details on the application's work and examples.
+Please refer to the pdf file for more details on the application's work and examples at:
+https://github.com/MAValle/Portfolio-Return-Simulation/blob/main/Portfolio%20Return%20Simulations.pdf
+
+Thanks!
